@@ -1,82 +1,48 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, AlertCircle, CheckCircle2, ArrowLeft } from "lucide-react";
+import { Loader2, AlertCircle, ArrowLeft, ThumbsUp, MessageSquare, TrendingUp } from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
-interface VideoRequest {
-  id: string;
-  video_url: string;
-  status: string;
-  results: {
-    images?: string[];
-    texts?: string[];
-    title?: string;
-    description?: string;
-  } | null;
-  created_at: string;
+interface N8NResult {
+  "Título do vídeo": string;
+  "Curtidas": number;
+  "Comentários": number;
+  "Top comentários": Array<{
+    "usuário": string;
+    "conteúdo": string;
+  }>;
 }
 
 const Result = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [request, setRequest] = useState<VideoRequest | null>(null);
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [resultData, setResultData] = useState<N8NResult | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+
+  // Mock sentiment data
+  const sentimentData = [
+    { name: 'Positivo', value: 65, color: '#22c55e' },
+    { name: 'Neutro', value: 25, color: '#94a3b8' },
+    { name: 'Negativo', value: 10, color: '#ef4444' },
+  ];
 
   useEffect(() => {
-    if (!id) return;
-
-    const fetchRequest = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("video_requests")
-          .select("*")
-          .eq("id", id)
-          .maybeSingle();
-
-        if (error) throw error;
-        
-        if (!data) {
-          setError("Requisição não encontrada");
-          setLoading(false);
-          return;
-        }
-
-        setRequest(data as unknown as VideoRequest);
-        setLoading(false);
-      } catch (err) {
-        console.error("Error fetching request:", err);
-        setError("Erro ao carregar dados");
-        setLoading(false);
-      }
-    };
-
-    fetchRequest();
-
-    // Subscribe to realtime updates
-    const channel = supabase
-      .channel('video-request-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'video_requests',
-          filter: `id=eq.${id}`
-        },
-        (payload) => {
-          console.log('Received update:', payload);
-          setRequest(payload.new as unknown as VideoRequest);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [id]);
+    if (location.state && location.state.resultData) {
+      setResultData(location.state.resultData);
+      setVideoUrl(location.state.videoUrl);
+      setLoading(false);
+    } else {
+      // Fallback if accessed directly without state (mocking for now as per new requirement flow)
+      // In a real scenario we might want to fetch from Supabase or N8N again if possible
+      setError("Dados não encontrados. Por favor, inicie o processo novamente.");
+      setLoading(false);
+    }
+  }, [location.state, id]);
 
   if (loading) {
     return (
@@ -84,19 +50,19 @@ const Result = () => {
         <Card className="glass-card p-12 text-center max-w-md w-full">
           <Loader2 className="w-16 h-16 mx-auto mb-6 text-primary animate-spin" />
           <h2 className="text-2xl font-bold mb-2">Carregando...</h2>
-          <p className="text-muted-foreground">Buscando informações da requisição</p>
+          <p className="text-muted-foreground">Processando análise</p>
         </Card>
       </div>
     );
   }
 
-  if (error || !request) {
+  if (error || !resultData) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <Card className="glass-card p-12 text-center max-w-md w-full">
           <AlertCircle className="w-16 h-16 mx-auto mb-6 text-destructive" />
           <h2 className="text-2xl font-bold mb-2">Erro</h2>
-          <p className="text-muted-foreground mb-6">{error || "Requisição não encontrada"}</p>
+          <p className="text-muted-foreground mb-6">{error}</p>
           <Button onClick={() => navigate("/")} variant="outline">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Voltar ao início
@@ -119,125 +85,105 @@ const Result = () => {
         </Button>
 
         <Card className="glass-card p-8 mb-8">
-          <div className="flex items-start justify-between mb-6">
+          <div className="flex flex-col md:flex-row items-start justify-between mb-6 gap-4">
             <div>
               <h1 className="text-3xl font-bold gradient-text mb-2">
-                Resultado do Processamento
+                {resultData["Título do vídeo"]}
               </h1>
-              <p className="text-muted-foreground">ID: {request.id}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              {request.status === "processing" && (
-                <>
-                  <Loader2 className="w-5 h-5 text-primary animate-spin" />
-                  <span className="text-primary font-medium">Processando...</span>
-                </>
-              )}
-              {request.status === "completed" && (
-                <>
-                  <CheckCircle2 className="w-5 h-5 text-green-500" />
-                  <span className="text-green-500 font-medium">Concluído</span>
-                </>
-              )}
-              {request.status === "failed" && (
-                <>
-                  <AlertCircle className="w-5 h-5 text-destructive" />
-                  <span className="text-destructive font-medium">Falhou</span>
-                </>
+              <p className="text-muted-foreground">ID da Análise: {id}</p>
+              {videoUrl && (
+                <p className="text-sm text-muted-foreground mt-1 break-all">
+                  URL: {videoUrl}
+                </p>
               )}
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-1">URL do Vídeo</h3>
-              <p className="text-foreground break-all">{request.video_url}</p>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <Card className="p-6 flex items-center gap-4 bg-card/50">
+              <div className="p-3 rounded-full bg-primary/10">
+                <ThumbsUp className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Curtidas</p>
+                <p className="text-2xl font-bold">{resultData.Curtidas}</p>
+              </div>
+            </Card>
             
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-1">Enviado em</h3>
-              <p className="text-foreground">
-                {new Date(request.created_at).toLocaleString("pt-BR")}
-              </p>
-            </div>
+            <Card className="p-6 flex items-center gap-4 bg-card/50">
+              <div className="p-3 rounded-full bg-primary/10">
+                <MessageSquare className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Comentários</p>
+                <p className="text-2xl font-bold">{resultData.Comentários}</p>
+              </div>
+            </Card>
+
+            <Card className="p-6 flex items-center gap-4 bg-card/50">
+              <div className="p-3 rounded-full bg-primary/10">
+                <TrendingUp className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Engajamento</p>
+                <p className="text-2xl font-bold">
+                  {Math.round(((resultData.Curtidas + resultData.Comentários) / 1000) * 10) / 10}%
+                </p>
+              </div>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Sentiment Analysis Chart */}
+            <Card className="p-6 bg-card/50">
+              <h3 className="text-xl font-bold mb-6">Análise de Sentimentos (Mock)</h3>
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={sentimentData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {sentimentData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+
+            {/* Top Comments */}
+            <Card className="p-6 bg-card/50">
+              <h3 className="text-xl font-bold mb-6">Principais Comentários</h3>
+              <div className="space-y-4">
+                {resultData["Top comentários"] && resultData["Top comentários"].map((comment, index) => (
+                  <div
+                    key={index}
+                    className="p-4 rounded-lg bg-background/50 border border-border/50"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">
+                        {comment["usuário"].substring(0, 2).toUpperCase()}
+                      </div>
+                      <span className="font-semibold text-sm">{comment["usuário"]}</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground pl-10">
+                      "{comment["conteúdo"]}"
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </Card>
           </div>
         </Card>
-
-        {request.status === "processing" && (
-          <Card className="glass-card p-12 text-center">
-            <Loader2 className="w-16 h-16 mx-auto mb-6 text-primary animate-spin" />
-            <h2 className="text-2xl font-bold mb-2">Processamento em andamento</h2>
-            <p className="text-muted-foreground">
-              Estamos processando seu vídeo. Esta página será atualizada automaticamente quando o processo for concluído.
-            </p>
-          </Card>
-        )}
-
-        {request.status === "completed" && request.results && (
-          <div className="space-y-8 animate-fade-in">
-            {request.results.title && (
-              <Card className="glass-card p-8">
-                <h2 className="text-2xl font-bold gradient-text mb-4">
-                  {request.results.title}
-                </h2>
-                {request.results.description && (
-                  <p className="text-foreground leading-relaxed">
-                    {request.results.description}
-                  </p>
-                )}
-              </Card>
-            )}
-
-            {request.results.images && request.results.images.length > 0 && (
-              <Card className="glass-card p-8">
-                <h3 className="text-xl font-bold mb-6">Imagens</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {request.results.images.map((image, index) => (
-                    <div 
-                      key={index} 
-                      className="relative group overflow-hidden rounded-lg border border-border/50 hover:border-primary/50 transition-all duration-300"
-                    >
-                      <img
-                        src={image}
-                        alt={`Resultado ${index + 1}`}
-                        className="w-full h-64 object-cover transition-transform duration-300 group-hover:scale-105"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            )}
-
-            {request.results.texts && request.results.texts.length > 0 && (
-              <Card className="glass-card p-8">
-                <h3 className="text-xl font-bold mb-6">Textos Extraídos</h3>
-                <div className="space-y-4">
-                  {request.results.texts.map((text, index) => (
-                    <div 
-                      key={index} 
-                      className="p-4 rounded-lg bg-muted/30 border border-border/30"
-                    >
-                      <p className="text-foreground leading-relaxed">{text}</p>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            )}
-          </div>
-        )}
-
-        {request.status === "failed" && (
-          <Card className="glass-card p-12 text-center border-destructive/50">
-            <AlertCircle className="w-16 h-16 mx-auto mb-6 text-destructive" />
-            <h2 className="text-2xl font-bold mb-2">Processamento Falhou</h2>
-            <p className="text-muted-foreground mb-6">
-              Ocorreu um erro ao processar seu vídeo. Por favor, tente novamente.
-            </p>
-            <Button onClick={() => navigate("/")}>
-              Tentar Novamente
-            </Button>
-          </Card>
-        )}
       </div>
     </div>
   );
