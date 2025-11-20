@@ -14,6 +14,89 @@ export type Database = {
   }
   public: {
     Tables: {
+      comentarios: {
+        Row: {
+          created_at: string
+          id: number
+          id_video: number | null
+          nome_usuario: string | null
+          comentario: string | null
+          curtidas: number | null
+          respostas: number | null
+          sentimento: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          id_video?: number | null
+          nome_usuario?: string | null
+          comentario?: string | null
+          curtidas?: number | null
+          respostas?: number | null
+          sentimento?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          id_video?: number | null
+          nome_usuario?: string | null
+          comentario?: string | null
+          curtidas?: number | null
+          respostas?: number | null
+          sentimento?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comentarios_id_video_fkey"
+            columns: ["id_video"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      videos: {
+        Row: {
+          id: number
+          created_at: string
+          id_analise: string | null
+          visualizacoes: number | null
+          curtidas: number | null
+          comentarios: number | null
+          nome_canal: string | null
+          url: string | null
+          titulo_video: string | null
+          data_video: string | null
+          data_ultimo_comentario: string | null
+        }
+        Insert: {
+          id?: number
+          created_at?: string
+          id_analise?: string | null
+          visualizacoes?: number | null
+          curtidas?: number | null
+          comentarios?: number | null
+          nome_canal?: string | null
+          url?: string | null
+          titulo_video?: string | null
+          data_video?: string | null
+          data_ultimo_comentario?: string | null
+        }
+        Update: {
+          id?: number
+          created_at?: string
+          id_analise?: string | null
+          visualizacoes?: number | null
+          curtidas?: number | null
+          comentarios?: number | null
+          nome_canal?: string | null
+          url?: string | null
+          titulo_video?: string | null
+          data_video?: string | null
+          data_ultimo_comentario?: string | null
+        }
+        Relationships: []
+      }
       video_requests: {
         Row: {
           created_at: string
