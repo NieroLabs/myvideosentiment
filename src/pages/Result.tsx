@@ -2,16 +2,23 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, AlertCircle, ArrowLeft, ThumbsUp, MessageSquare, TrendingUp } from "lucide-react";
+import { Loader2, AlertCircle, ArrowLeft, ThumbsUp, MessageSquare, TrendingUp, User, Calendar, Clock } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
 interface N8NResult {
   "Título do vídeo": string;
   "Curtidas": number;
   "Comentários": number;
+  "Visualizações": number;
+  "Nome do canal": string;
+  "Data da postagem": string;
+  "Duração": string;
+  "Data do comentário mais recente": string;
   "Top comentários": Array<{
     "usuário": string;
     "conteúdo": string;
+    "curtidas": number;
+    "respostas": number;
   }>;
 }
 
@@ -91,32 +98,66 @@ const Result = () => {
                 {resultData["Título do vídeo"]}
               </h1>
               <p className="text-muted-foreground">ID da Análise: {id}</p>
+
+              <div className="flex flex-wrap gap-4 mt-3 text-sm text-muted-foreground">
+                {resultData["Nome do canal"] && (
+                  <span className="flex items-center gap-1.5 bg-secondary/50 px-3 py-1 rounded-full">
+                    <User className="w-4 h-4" /> {resultData["Nome do canal"]}
+                  </span>
+                )}
+                {resultData["Data da postagem"] && (
+                  <span className="flex items-center gap-1.5 bg-secondary/50 px-3 py-1 rounded-full">
+                    <Calendar className="w-4 h-4" /> {resultData["Data da postagem"]}
+                  </span>
+                )}
+                {resultData["Duração"] && (
+                  <span className="flex items-center gap-1.5 bg-secondary/50 px-3 py-1 rounded-full">
+                    <Clock className="w-4 h-4" /> {resultData["Duração"]}
+                  </span>
+                )}
+              </div>
+
               {videoUrl && (
-                <p className="text-sm text-muted-foreground mt-1 break-all">
+                <p className="text-sm text-muted-foreground mt-3 break-all">
                   URL: {videoUrl}
                 </p>
               )}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <Card className="p-6 flex items-center gap-4 bg-card/50">
+              <div className="p-3 rounded-full bg-primary/10">
+                <TrendingUp className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Visualizações</p>
+                <p className="text-2xl font-bold">{resultData.Visualizações?.toLocaleString() || '-'}</p>
+              </div>
+            </Card>
+
             <Card className="p-6 flex items-center gap-4 bg-card/50">
               <div className="p-3 rounded-full bg-primary/10">
                 <ThumbsUp className="w-6 h-6 text-primary" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Curtidas</p>
-                <p className="text-2xl font-bold">{resultData.Curtidas}</p>
+                <p className="text-2xl font-bold">{resultData.Curtidas?.toLocaleString() || '-'}</p>
               </div>
             </Card>
-            
+
             <Card className="p-6 flex items-center gap-4 bg-card/50">
               <div className="p-3 rounded-full bg-primary/10">
                 <MessageSquare className="w-6 h-6 text-primary" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Comentários</p>
-                <p className="text-2xl font-bold">{resultData.Comentários}</p>
+                <p className="text-2xl font-bold">{resultData.Comentários?.toLocaleString() || '-'}</p>
+                {resultData["Data do comentário mais recente"] && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Último: {resultData["Data do comentário mais recente"]}
+                  </p>
+                )}
               </div>
             </Card>
 
@@ -127,7 +168,9 @@ const Result = () => {
               <div>
                 <p className="text-sm text-muted-foreground">Engajamento</p>
                 <p className="text-2xl font-bold">
-                  {Math.round(((resultData.Curtidas + resultData.Comentários) / 1000) * 10) / 10}%
+                  {resultData.Visualizações
+                    ? (Math.round(((resultData.Curtidas + resultData.Comentários) / resultData.Visualizações) * 100 * 10) / 10) + '%'
+                    : '-'}
                 </p>
               </div>
             </Card>
@@ -175,9 +218,19 @@ const Result = () => {
                       </div>
                       <span className="font-semibold text-sm">{comment["usuário"]}</span>
                     </div>
-                    <p className="text-sm text-muted-foreground pl-10">
+                    <p className="text-sm text-muted-foreground pl-10 mb-3">
                       "{comment["conteúdo"]}"
                     </p>
+                    <div className="flex items-center gap-4 pl-10 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <ThumbsUp className="w-3 h-3" />
+                        {comment["curtidas"] || 0}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <MessageSquare className="w-3 h-3" />
+                        {comment["respostas"] || 0}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
