@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Video } from "lucide-react";
+import { v4 as uuidv4 } from 'uuid';
 
 const VideoUrlForm = () => {
   const [videoUrl, setVideoUrl] = useState("");
@@ -40,24 +40,38 @@ const VideoUrlForm = () => {
     setIsSubmitting(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("process-video", {
-        body: { videoUrl },
+      const generatedId = uuidv4();
+
+      // Call N8N webhook
+      const response = await fetch('https://negociaai.app.n8n.cloud/webhook-test/analisa-video', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: generatedId,
+          url: videoUrl // Sending 'url' as well as the prompt requested "URL do vídeo"
+        }),
       });
 
-      if (error) throw error;
-
-      if (data?.requestId) {
-        toast({
-          title: "Processamento iniciado!",
-          description: "Você será redirecionado para a página de resultados",
-        });
-        navigate(`/result/${data.requestId}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+
+      const data = await response.json();
+
+      toast({
+        title: "Análise concluída!",
+        description: "Direcionando para os resultados...",
+      });
+
+      navigate(`/result/${generatedId}`, { state: { resultData: data, videoUrl: videoUrl } });
+
     } catch (error) {
       console.error("Error submitting video:", error);
       toast({
         title: "Erro ao processar",
-        description: "Ocorreu um erro ao enviar sua requisição. Tente novamente.",
+        description: "Ocorreu um erro ao enviar sua requisição para o N8N. Tente novamente.",
         variant: "destructive",
       });
     } finally {
