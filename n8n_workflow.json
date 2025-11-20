@@ -1,0 +1,285 @@
+{
+  "name": "YouTube Sentiment Analysis",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "analisa-video",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const url = $input.item.json.url;\nlet videoId = '';\n\ntry {\n  const parsed = new URL(url);\n  if (parsed.hostname.includes('youtu.be')) {\n    videoId = parsed.pathname.substring(1);\n  } else if (parsed.hostname.includes('youtube.com')) {\n    videoId = parsed.searchParams.get('v');\n  }\n} catch (e) {\n  // Handle invalid URL\n}\n\nreturn {\n  json: {\n    videoId,\n    url\n  }\n};"
+      },
+      "name": "Extract Video ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "get",
+        "videoId": "={{ $json.videoId }}",
+        "part": [
+          "snippet",
+          "statistics"
+        ]
+      },
+      "name": "Get Video Details",
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "youTubeApi": {
+          "id": "YOUR_YOUTUBE_CREDENTIAL_ID",
+          "name": "YouTube account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "commentThread",
+        "operation": "list",
+        "videoId": "={{ $('Extract Video ID').item.json.videoId }}",
+        "part": [
+          "snippet"
+        ],
+        "limit": 50,
+        "order": "relevance"
+      },
+      "name": "Get Comments",
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "youTubeApi": {
+          "id": "YOUR_YOUTUBE_CREDENTIAL_ID",
+          "name": "YouTube account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const comments = $input.all().map(item => {\n  const snippet = item.json.snippet.topLevelComment.snippet;\n  return {\n    text: snippet.textDisplay,\n    author: snippet.authorDisplayName,\n    likes: snippet.likeCount,\n    publishedAt: snippet.publishedAt,\n    id: item.json.id\n  };\n});\n\nreturn {\n  json: {\n    comments\n  }\n};"
+      },
+      "name": "Format Comments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are a public opinion analyst. Classify each of the following comments into exactly ONE of these categories:\n1. apoio_operacao (support)\n2. contra_operacao (against)\n3. apoio_condicional (conditional support)\n4. comentario_politico (political)\n5. neutro_ou_fora_de_contexto (neutral)\n6. pedindo_informacao (asking info)\n\nReturn a JSON object where keys are comment indices (0 to N) and values are the category name.\n\nComments:\n{{ $json.comments.map((c, i) => `${i}: ${c.text}`).join('\\n') }}"
+            }
+          ]
+        },
+        "jsonOutput": true
+      },
+      "name": "Analyze Sentiment",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        300
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const videoInfo = $('Get Video Details').first().json;\nconst comments = $('Format Comments').first().json.comments;\nconst analysis = $input.first().json;\n\nconst sentimentMapping = {\n  'apoio_operacao': 'Positivo',\n  'apoio_condicional': 'Positivo',\n  'contra_operacao': 'Negativo',\n  'comentario_politico': 'Neutro',\n  'neutro_ou_fora_de_contexto': 'Neutro',\n  'pedindo_informacao': 'Neutro'\n};\n\nconst sentimentCounts = {\n  'Positivo': 0,\n  'Neutro': 0,\n  'Negativo': 0\n};\n\nconst enrichedComments = comments.map((c, i) => {\n  const rawCategory = analysis[i] || 'neutro_ou_fora_de_contexto';\n  const mappedSentiment = sentimentMapping[rawCategory] || 'Neutro';\n  \n  sentimentCounts[mappedSentiment]++;\n  \n  return {\n    ...c,\n    raw_sentiment: rawCategory,\n    mapped_sentiment: mappedSentiment\n  };\n});\n\nconst result = {\n  \"Título do vídeo\": videoInfo.snippet.title,\n  \"Curtidas\": parseInt(videoInfo.statistics.likeCount),\n  \"Comentários\": parseInt(videoInfo.statistics.commentCount),\n  \"Visualizações\": parseInt(videoInfo.statistics.viewCount),\n  \"Nome do canal\": videoInfo.snippet.channelTitle,\n  \"Data da postagem\": videoInfo.snippet.publishedAt,\n  \"Duração\": videoInfo.contentDetails.duration,\n  \"Data do comentário mais recente\": comments.length > 0 ? comments[0].publishedAt : null,\n  \"Top comentários\": enrichedComments.map(c => ({\n    \"usuário\": c.author,\n    \"conteúdo\": c.text,\n    \"curtidas\": c.likes,\n    \"respostas\": 0,\n    \"sentimento\": c.mapped_sentiment\n  })),\n  \"sentimento\": {\n    \"positivo\": sentimentCounts['Positivo'],\n    \"neutro\": sentimentCounts['Neutro'],\n    \"negativo\": sentimentCounts['Negativo']\n  },\n  \"video_id\": videoInfo.id,\n  \"video_url\": `https://www.youtube.com/watch?v=${videoInfo.id}`\n};\n\nreturn { json: result };"
+      },
+      "name": "Process Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "table": "videos",
+        "columns": "id_analise, url, titulo_video, visualizacoes, curtidas, comentarios, nome_canal, data_video, data_ultimo_comentario",
+        "options": {}
+      },
+      "name": "Save Video",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        200
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CREDENTIAL_ID",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "table": "comentarios",
+        "columns": "id_video, nome_usuario, comentario, curtidas, respostas, sentimento",
+        "options": {}
+      },
+      "name": "Save Comments",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1980,
+        200
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CREDENTIAL_ID",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Video ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Video ID": {
+      "main": [
+        [
+          {
+            "node": "Get Video Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Video Details": {
+      "main": [
+        [
+          {
+            "node": "Get Comments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Comments": {
+      "main": [
+        [
+          {
+            "node": "Format Comments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Comments": {
+      "main": [
+        [
+          {
+            "node": "Analyze Sentiment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Sentiment": {
+      "main": [
+        [
+          {
+            "node": "Process Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Results": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Video": {
+      "main": [
+        [
+          {
+            "node": "Save Comments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

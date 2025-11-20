@@ -20,7 +20,13 @@ interface N8NResult {
     "conteúdo": string;
     "curtidas": number;
     "respostas": number;
+    "sentimento"?: string;
   }>;
+  "sentimento"?: {
+    "positivo": number;
+    "neutro": number;
+    "negativo": number;
+  };
 }
 
 const Result = () => {
@@ -31,19 +37,39 @@ const Result = () => {
   const [error, setError] = useState<string | null>(null);
   const [resultData, setResultData] = useState<N8NResult | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [sentimentData, setSentimentData] = useState([
+    { name: 'Positivo', value: 0, color: '#22c55e' },
+    { name: 'Neutro', value: 0, color: '#94a3b8' },
+    { name: 'Negativo', value: 0, color: '#ef4444' },
+  ]);
 
-  // Mock sentiment data
-  const sentimentData = [
-    { name: 'Positivo', value: 65, color: '#22c55e' },
-    { name: 'Neutro', value: 25, color: '#94a3b8' },
-    { name: 'Negativo', value: 10, color: '#ef4444' },
-  ];
+  const mapSentimentCategory = (category: string): string => {
+    if (['apoio_operacao', 'apoio_condicional', 'positivo'].includes(category.toLowerCase())) return 'Positivo';
+    if (['contra_operacao', 'negativo'].includes(category.toLowerCase())) return 'Negativo';
+    return 'Neutro';
+  };
+
+  const updateSentimentChart = (counts: { positivo: number, neutro: number, negativo: number }) => {
+    setSentimentData([
+      { name: 'Positivo', value: counts.positivo, color: '#22c55e' },
+      { name: 'Neutro', value: counts.neutro, color: '#94a3b8' },
+      { name: 'Negativo', value: counts.negativo, color: '#ef4444' },
+    ]);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
       if (location.state && location.state.resultData) {
-        setResultData(location.state.resultData);
+        const data = location.state.resultData as N8NResult;
+        setResultData(data);
         setVideoUrl(location.state.videoUrl);
+
+        if (data.sentimento) {
+          updateSentimentChart(data.sentimento);
+        } else {
+          // Fallback if n8n doesn't send aggregated sentiment but sends comments with sentiment
+          // Or just leave it empty/zeros
+        }
         setLoading(false);
       } else if (id) {
         try {
@@ -66,6 +92,17 @@ const Result = () => {
 
             if (commentsError) throw commentsError;
 
+            // Calculate sentiment from comments
+            const sentimentCounts = { positivo: 0, neutro: 0, negativo: 0 };
+            commentsData?.forEach(comment => {
+              const sentiment = mapSentimentCategory(comment.sentimento || '');
+              if (sentiment === 'Positivo') sentimentCounts.positivo++;
+              else if (sentiment === 'Negativo') sentimentCounts.negativo++;
+              else sentimentCounts.neutro++;
+            });
+
+            updateSentimentChart(sentimentCounts);
+
             // Map Supabase data to N8NResult structure
             const mappedData: N8NResult = {
               "Título do vídeo": videoData.titulo_video || "",
@@ -80,7 +117,8 @@ const Result = () => {
                 "usuário": comment.nome_usuario || "",
                 "conteúdo": comment.comentario || "",
                 "curtidas": comment.curtidas || 0,
-                "respostas": comment.respostas || 0
+                "respostas": comment.respostas || 0,
+                "sentimento": comment.sentimento || undefined
               })) || []
             };
 
@@ -231,7 +269,7 @@ const Result = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Sentiment Analysis Chart */}
             <Card className="p-6 bg-card/50">
-              <h3 className="text-xl font-bold mb-6">Análise de Sentimentos (Mock)</h3>
+              <h3 className="text-xl font-bold mb-6">Análise de Sentimentos</h3>
               <div className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -282,6 +320,15 @@ const Result = () => {
                         <MessageSquare className="w-3 h-3" />
                         {comment["respostas"] || 0}
                       </span>
+                      {comment.sentimento && (
+                        <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] ${
+                          mapSentimentCategory(comment.sentimento) === 'Positivo' ? 'bg-green-500/20 text-green-600' :
+                          mapSentimentCategory(comment.sentimento) === 'Negativo' ? 'bg-red-500/20 text-red-600' :
+                          'bg-gray-500/20 text-gray-600'
+                        }`}>
+                          {mapSentimentCategory(comment.sentimento)}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}
