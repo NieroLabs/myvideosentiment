@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, AlertCircle, ArrowLeft, ThumbsUp, MessageSquare, TrendingUp, User, Calendar, Clock } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { supabase } from "@/integrations/supabase/client";
 
 interface N8NResult {
   "Título do vídeo": string;
@@ -39,16 +40,67 @@ const Result = () => {
   ];
 
   useEffect(() => {
-    if (location.state && location.state.resultData) {
-      setResultData(location.state.resultData);
-      setVideoUrl(location.state.videoUrl);
-      setLoading(false);
-    } else {
-      // Fallback if accessed directly without state (mocking for now as per new requirement flow)
-      // In a real scenario we might want to fetch from Supabase or N8N again if possible
-      setError("Dados não encontrados. Por favor, inicie o processo novamente.");
-      setLoading(false);
-    }
+    const fetchData = async () => {
+      if (location.state && location.state.resultData) {
+        setResultData(location.state.resultData);
+        setVideoUrl(location.state.videoUrl);
+        setLoading(false);
+      } else if (id) {
+        try {
+          // Fetch from Supabase
+          const { data: videoData, error: videoError } = await supabase
+            .from('videos')
+            .select('*')
+            .eq('id_analise', id)
+            .single();
+
+          if (videoError) throw videoError;
+
+          if (videoData) {
+            setVideoUrl(videoData.url);
+
+            const { data: commentsData, error: commentsError } = await supabase
+              .from('comentarios')
+              .select('*')
+              .eq('id_video', videoData.id);
+
+            if (commentsError) throw commentsError;
+
+            // Map Supabase data to N8NResult structure
+            const mappedData: N8NResult = {
+              "Título do vídeo": videoData.titulo_video || "",
+              "Curtidas": videoData.curtidas || 0,
+              "Comentários": videoData.comentarios || 0,
+              "Visualizações": videoData.visualizacoes || 0,
+              "Nome do canal": videoData.nome_canal || "",
+              "Data da postagem": videoData.data_video || "",
+              "Duração": "-", // Duration is not stored in DB schema provided
+              "Data do comentário mais recente": videoData.data_ultimo_comentario || "",
+              "Top comentários": commentsData?.map(comment => ({
+                "usuário": comment.nome_usuario || "",
+                "conteúdo": comment.comentario || "",
+                "curtidas": comment.curtidas || 0,
+                "respostas": comment.respostas || 0
+              })) || []
+            };
+
+            setResultData(mappedData);
+          } else {
+            setError("Análise não encontrada.");
+          }
+        } catch (err) {
+          console.error("Error fetching from Supabase:", err);
+          setError("Erro ao carregar análise do histórico.");
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        setError("Dados não encontrados. Por favor, inicie o processo novamente.");
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, [location.state, id]);
 
   if (loading) {

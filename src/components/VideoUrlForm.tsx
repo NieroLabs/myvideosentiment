@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Video } from "lucide-react";
 import { v4 as uuidv4 } from 'uuid';
+import { supabase } from "@/integrations/supabase/client";
 
 const VideoUrlForm = () => {
   const [videoUrl, setVideoUrl] = useState("");
@@ -59,6 +60,46 @@ const VideoUrlForm = () => {
       }
 
       const data = await response.json();
+
+      // Save to Supabase
+      const { data: videoData, error: videoError } = await supabase
+        .from('videos')
+        .insert({
+          id_analise: generatedId,
+          url: videoUrl,
+          titulo_video: data["Título do vídeo"],
+          visualizacoes: data["Visualizações"],
+          curtidas: data["Curtidas"],
+          comentarios: data["Comentários"],
+          nome_canal: data["Nome do canal"],
+          data_video: data["Data da postagem"],
+          data_ultimo_comentario: data["Data do comentário mais recente"] ? new Date(data["Data do comentário mais recente"]).toISOString() : null,
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (videoError) {
+        console.error("Error saving video to Supabase:", videoError);
+        // We don't block navigation here, but maybe we should warn?
+        // Continuing to display results even if save fails.
+      } else if (videoData && data["Top comentários"]) {
+        const commentsToInsert = data["Top comentários"].map((comment: any) => ({
+          id_video: videoData.id,
+          nome_usuario: comment["usuário"],
+          comentario: comment["conteúdo"],
+          curtidas: comment["curtidas"],
+          respostas: comment["respostas"]
+        }));
+
+        const { error: commentsError } = await supabase
+          .from('comentarios')
+          .insert(commentsToInsert);
+
+        if (commentsError) {
+          console.error("Error saving comments to Supabase:", commentsError);
+        }
+      }
 
       toast({
         title: "Análise concluída!",
