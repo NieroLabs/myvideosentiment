@@ -339,9 +339,9 @@ const Result = () => {
             </Card>
 
             {/* Top Comments */}
-            <Card className="p-6 bg-card/50">
+            <Card className="p-6 bg-card/50 flex flex-col max-h-[500px]">
               <h3 className="text-xl font-bold mb-6">Principais Comentários</h3>
-              <div className="space-y-4">
+              <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
                 {resultData["Top comentários"] && resultData["Top comentários"].map((comment, index) => (
                   <div
                     key={index}
