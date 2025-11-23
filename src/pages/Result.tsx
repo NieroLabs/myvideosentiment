@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, AlertCircle, ArrowLeft, ThumbsUp, MessageSquare, TrendingUp, User, Calendar, Clock } from "lucide-react";
@@ -32,7 +32,6 @@ interface N8NResult {
 const Result = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [resultData, setResultData] = useState<N8NResult | null>(null);
@@ -59,19 +58,7 @@ const Result = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (location.state && location.state.resultData) {
-        const data = location.state.resultData as N8NResult;
-        setResultData(data);
-        setVideoUrl(location.state.videoUrl);
-
-        if (data.sentimento) {
-          updateSentimentChart(data.sentimento);
-        } else {
-          // Fallback if n8n doesn't send aggregated sentiment but sends comments with sentiment
-          // Or just leave it empty/zeros
-        }
-        setLoading(false);
-      } else if (id) {
+      if (id) {
         try {
           // Fetch from Supabase
           const { data: videoData, error: videoError } = await supabase
@@ -139,7 +126,7 @@ const Result = () => {
     };
 
     fetchData();
-  }, [location.state, id]);
+  }, [id]);
 
   if (loading) {
     return (

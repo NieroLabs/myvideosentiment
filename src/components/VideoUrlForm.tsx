@@ -5,8 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Video } from "lucide-react";
-import { v4 as uuidv4 } from 'uuid';
-import { supabase } from "@/integrations/supabase/client";
 
 const VideoUrlForm = () => {
   const [videoUrl, setVideoUrl] = useState("");
@@ -41,8 +39,6 @@ const VideoUrlForm = () => {
     setIsSubmitting(true);
 
     try {
-      const generatedId = uuidv4();
-
       // Call N8N webhook
       const response = await fetch('https://negociaai.app.n8n.cloud/webhook-test/analisa-video', {
         method: 'POST',
@@ -50,8 +46,7 @@ const VideoUrlForm = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          id: generatedId,
-          url: videoUrl // Sending 'url' as well as the prompt requested "URL do vídeo"
+          url: videoUrl
         }),
       });
 
@@ -60,45 +55,10 @@ const VideoUrlForm = () => {
       }
 
       const data = await response.json();
+      const youtubeId = data["ID do vídeo no youtube"];
 
-      // Save to Supabase
-      const { data: videoData, error: videoError } = await supabase
-        .from('videos')
-        .insert({
-          id_analise: generatedId,
-          url: videoUrl,
-          titulo_video: data["Título do vídeo"],
-          visualizacoes: data["Visualizações"],
-          curtidas: data["Curtidas"],
-          comentarios: data["Comentários"],
-          nome_canal: data["Nome do canal"],
-          data_video: data["Data da postagem"],
-          data_ultimo_comentario: data["Data do comentário mais recente"] ? new Date(data["Data do comentário mais recente"]).toISOString() : null,
-          created_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-
-      if (videoError) {
-        console.error("Error saving video to Supabase:", videoError);
-        // We don't block navigation here, but maybe we should warn?
-        // Continuing to display results even if save fails.
-      } else if (videoData && data["Top comentários"]) {
-        const commentsToInsert = data["Top comentários"].map((comment: any) => ({
-          id_video: videoData.id,
-          nome_usuario: comment["usuário"],
-          comentario: comment["conteúdo"],
-          curtidas: comment["curtidas"],
-          respostas: comment["respostas"]
-        }));
-
-        const { error: commentsError } = await supabase
-          .from('comentarios')
-          .insert(commentsToInsert);
-
-        if (commentsError) {
-          console.error("Error saving comments to Supabase:", commentsError);
-        }
+      if (!youtubeId) {
+        throw new Error("N8N did not return a YouTube ID");
       }
 
       toast({
@@ -106,7 +66,7 @@ const VideoUrlForm = () => {
         description: "Direcionando para os resultados...",
       });
 
-      navigate(`/result/${generatedId}`, { state: { resultData: data, videoUrl: videoUrl } });
+      navigate(`/result/${youtubeId}`);
 
     } catch (error) {
       console.error("Error submitting video:", error);
