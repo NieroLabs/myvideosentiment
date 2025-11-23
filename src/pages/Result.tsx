@@ -77,7 +77,7 @@ const Result = () => {
           const { data: videoData, error: videoError } = await supabase
             .from('videos')
             .select('*')
-            .eq('id_analise', id)
+            .eq('id_video_youtube', id)
             .single();
 
           if (videoError) throw videoError;
@@ -88,7 +88,7 @@ const Result = () => {
             const { data: commentsData, error: commentsError } = await supabase
               .from('comentarios')
               .select('*')
-              .eq('id_video', videoData.id);
+              .eq('id_video_youtube', videoData.id_video_youtube);
 
             if (commentsError) throw commentsError;
 
