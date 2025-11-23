@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, AlertCircle, ArrowLeft, ThumbsUp, MessageSquare, TrendingUp, User, Calendar, Clock } from "lucide-react";
+import { Loader2, AlertCircle, ArrowLeft, ThumbsUp, MessageSquare, TrendingUp, User, Calendar, Clock, BarChart2 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/components/ui/use-toast";
 
 interface N8NResult {
   "Título do vídeo": string;
@@ -32,7 +33,9 @@ interface N8NResult {
 const Result = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
+  const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resultData, setResultData] = useState<N8NResult | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -56,77 +59,110 @@ const Result = () => {
     ]);
   };
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (id) {
-        try {
-          // Fetch from Supabase
-          const { data: videoData, error: videoError } = await supabase
-            .from('videos')
+  const fetchData = useCallback(async () => {
+    if (id) {
+      try {
+        // Fetch from Supabase
+        const { data: videoData, error: videoError } = await supabase
+          .from('videos')
+          .select('*')
+          .eq('id_video_youtube', id)
+          .single();
+
+        if (videoError) throw videoError;
+
+        if (videoData) {
+          setVideoUrl(videoData.url);
+
+          const { data: commentsData, error: commentsError } = await supabase
+            .from('comentarios')
             .select('*')
-            .eq('id_video_youtube', id)
-            .single();
+            .eq('id_video_youtube', videoData.id_video_youtube);
 
-          if (videoError) throw videoError;
+          if (commentsError) throw commentsError;
 
-          if (videoData) {
-            setVideoUrl(videoData.url);
+          // Calculate sentiment from comments
+          const sentimentCounts = { positivo: 0, neutro: 0, negativo: 0 };
+          commentsData?.forEach(comment => {
+            const sentiment = mapSentimentCategory(comment.sentimento || '');
+            if (sentiment === 'Positivo') sentimentCounts.positivo++;
+            else if (sentiment === 'Negativo') sentimentCounts.negativo++;
+            else sentimentCounts.neutro++;
+          });
 
-            const { data: commentsData, error: commentsError } = await supabase
-              .from('comentarios')
-              .select('*')
-              .eq('id_video_youtube', videoData.id_video_youtube);
+          updateSentimentChart(sentimentCounts);
 
-            if (commentsError) throw commentsError;
+          // Map Supabase data to N8NResult structure
+          const mappedData: N8NResult = {
+            "Título do vídeo": videoData.titulo_video || "",
+            "Curtidas": videoData.curtidas || 0,
+            "Comentários": videoData.comentarios || 0,
+            "Visualizações": videoData.visualizacoes || 0,
+            "Nome do canal": videoData.nome_canal || "",
+            "Data da postagem": videoData.data_video || "",
+            "Duração": "-", // Duration is not stored in DB schema provided
+            "Data do comentário mais recente": videoData.data_ultimo_comentario || "",
+            "Top comentários": commentsData?.map(comment => ({
+              "usuário": comment.nome_usuario || "",
+              "conteúdo": comment.comentario || "",
+              "curtidas": comment.curtidas || 0,
+              "respostas": comment.respostas || 0,
+              "sentimento": comment.sentimento || undefined
+            })) || []
+          };
 
-            // Calculate sentiment from comments
-            const sentimentCounts = { positivo: 0, neutro: 0, negativo: 0 };
-            commentsData?.forEach(comment => {
-              const sentiment = mapSentimentCategory(comment.sentimento || '');
-              if (sentiment === 'Positivo') sentimentCounts.positivo++;
-              else if (sentiment === 'Negativo') sentimentCounts.negativo++;
-              else sentimentCounts.neutro++;
-            });
-
-            updateSentimentChart(sentimentCounts);
-
-            // Map Supabase data to N8NResult structure
-            const mappedData: N8NResult = {
-              "Título do vídeo": videoData.titulo_video || "",
-              "Curtidas": videoData.curtidas || 0,
-              "Comentários": videoData.comentarios || 0,
-              "Visualizações": videoData.visualizacoes || 0,
-              "Nome do canal": videoData.nome_canal || "",
-              "Data da postagem": videoData.data_video || "",
-              "Duração": "-", // Duration is not stored in DB schema provided
-              "Data do comentário mais recente": videoData.data_ultimo_comentario || "",
-              "Top comentários": commentsData?.map(comment => ({
-                "usuário": comment.nome_usuario || "",
-                "conteúdo": comment.comentario || "",
-                "curtidas": comment.curtidas || 0,
-                "respostas": comment.respostas || 0,
-                "sentimento": comment.sentimento || undefined
-              })) || []
-            };
-
-            setResultData(mappedData);
-          } else {
-            setError("Análise não encontrada.");
-          }
-        } catch (err) {
-          console.error("Error fetching from Supabase:", err);
-          setError("Erro ao carregar análise do histórico.");
-        } finally {
-          setLoading(false);
+          setResultData(mappedData);
+        } else {
+          setError("Análise não encontrada.");
         }
-      } else {
-        setError("Dados não encontrados. Por favor, inicie o processo novamente.");
+      } catch (err) {
+        console.error("Error fetching from Supabase:", err);
+        setError("Erro ao carregar análise do histórico.");
+      } finally {
         setLoading(false);
       }
-    };
-
-    fetchData();
+    } else {
+      setError("Dados não encontrados. Por favor, inicie o processo novamente.");
+      setLoading(false);
+    }
   }, [id]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handleAnalyzeSentiment = async () => {
+    if (!id) return;
+    setAnalyzing(true);
+    try {
+      await fetch('https://negociaai.app.n8n.cloud/webhook-test/processa-comentarios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ video_id: id })
+      });
+
+      toast({
+        title: "Análise concluída",
+        description: "Os sentimentos dos comentários foram analisados com sucesso.",
+      });
+
+      // Re-fetch data
+      await fetchData();
+    } catch (error) {
+      console.error("Error analyzing sentiment:", error);
+      toast({
+        title: "Erro",
+        description: "Ocorreu um erro ao analisar os sentimentos.",
+        variant: "destructive",
+      });
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const hasComments = resultData && resultData["Top comentários"].length > 0;
+  const hasSentiment = resultData && resultData["Top comentários"].some(c => c.sentimento && c.sentimento.trim() !== '');
+  const showAnalyzeButton = hasComments && !hasSentiment;
 
   if (loading) {
     return (
@@ -255,29 +291,51 @@ const Result = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Sentiment Analysis Chart */}
-            <Card className="p-6 bg-card/50">
-              <h3 className="text-xl font-bold mb-6">Análise de Sentimentos</h3>
-              <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={sentimentData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {sentimentData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+            <Card className="p-6 bg-card/50 flex flex-col items-center justify-center min-h-[350px]">
+              <h3 className="text-xl font-bold mb-6 w-full text-left">Análise de Sentimentos</h3>
+              {showAnalyzeButton ? (
+                <div className="flex flex-col items-center gap-4">
+                  <BarChart2 className="w-16 h-16 text-muted-foreground/50" />
+                  <p className="text-muted-foreground text-center">
+                    Os comentários ainda não foram analisados.
+                  </p>
+                  <Button
+                    onClick={handleAnalyzeSentiment}
+                    disabled={analyzing}
+                  >
+                    {analyzing ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Analisando...
+                      </>
+                    ) : (
+                      "Analisar sentimentos dos comentários"
+                    )}
+                  </Button>
+                </div>
+              ) : (
+                <div className="h-[300px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={sentimentData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {sentimentData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </Card>
 
             {/* Top Comments */}
