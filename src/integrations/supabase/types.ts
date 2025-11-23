@@ -18,7 +18,7 @@ export type Database = {
         Row: {
           created_at: string
           id: number
-          id_video: number | null
+          id_video_youtube: string | null
           nome_usuario: string | null
           comentario: string | null
           curtidas: number | null
@@ -28,7 +28,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: number
-          id_video?: number | null
+          id_video_youtube?: string | null
           nome_usuario?: string | null
           comentario?: string | null
           curtidas?: number | null
@@ -38,7 +38,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: number
-          id_video?: number | null
+          id_video_youtube?: string | null
           nome_usuario?: string | null
           comentario?: string | null
           curtidas?: number | null
@@ -47,11 +47,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "comentarios_id_video_fkey"
-            columns: ["id_video"]
+            foreignKeyName: "comentarios_id_video_youtube_fkey"
+            columns: ["id_video_youtube"]
             isOneToOne: false
             referencedRelation: "videos"
-            referencedColumns: ["id"]
+            referencedColumns: ["id_video_youtube"]
           }
         ]
       }
@@ -59,7 +59,7 @@ export type Database = {
         Row: {
           id: number
           created_at: string
-          id_analise: string | null
+          id_video_youtube: string
           visualizacoes: number | null
           curtidas: number | null
           comentarios: number | null
@@ -72,7 +72,7 @@ export type Database = {
         Insert: {
           id?: number
           created_at?: string
-          id_analise?: string | null
+          id_video_youtube: string
           visualizacoes?: number | null
           curtidas?: number | null
           comentarios?: number | null
@@ -85,7 +85,7 @@ export type Database = {
         Update: {
           id?: number
           created_at?: string
-          id_analise?: string | null
+          id_video_youtube?: string
           visualizacoes?: number | null
           curtidas?: number | null
           comentarios?: number | null

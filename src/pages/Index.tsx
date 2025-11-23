@@ -7,7 +7,7 @@ import { Link } from "react-router-dom";
 
 interface VideoHistory {
   id: number;
-  id_analise: string;
+  id_video_youtube: string;
   titulo_video: string | null;
   created_at: string;
   url: string | null;
@@ -21,7 +21,7 @@ const Index = () => {
       try {
         const { data, error } = await supabase
           .from('videos')
-          .select('id, id_analise, titulo_video, created_at, url')
+          .select('id, id_video_youtube, titulo_video, created_at, url')
           .order('created_at', { ascending: false })
           .limit(5);
 
@@ -53,7 +53,7 @@ const Index = () => {
           <h3 className="text-xl font-semibold mb-4 text-center">Histórico Recente</h3>
           <div className="grid gap-4">
             {history.map((item) => (
-              <Link key={item.id} to={`/result/${item.id_analise}`}>
+              <Link key={item.id} to={`/result/${item.id_video_youtube}`}>
                 <Card className="p-4 hover:bg-accent/5 transition-colors flex items-center gap-4 cursor-pointer border-primary/20">
                   <div className="p-2 rounded-lg bg-primary/10">
                     <Video className="w-5 h-5 text-primary" />
