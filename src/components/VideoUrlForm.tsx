@@ -5,12 +5,15 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Video } from "lucide-react";
+import { useProfile } from "@/hooks/useProfile";
+import { supabase } from "@/integrations/supabase/client";
 
 const VideoUrlForm = () => {
   const [videoUrl, setVideoUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { profile } = useProfile();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +27,6 @@ const VideoUrlForm = () => {
       return;
     }
 
-    // Basic URL validation
     try {
       new URL(videoUrl);
     } catch {
@@ -36,17 +38,29 @@ const VideoUrlForm = () => {
       return;
     }
 
+    if (!profile) {
+       // Allow submission even if not logged in? The requirement says "access to webapp... if not logged in, redirect to login".
+       // So protected route handles this. But let's be safe.
+      toast({
+        title: "Erro de autenticação",
+        description: "Você precisa estar logado para processar vídeos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      // Call N8N webhook
+      // Call N8N webhook with qtd_comentarios: 0 (Metadata only)
       const response = await fetch('https://negociaai.app.n8n.cloud/webhook-test/analisa-video', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          url: videoUrl
+          url: videoUrl,
+          qtd_comentarios: 0
         }),
       });
 
@@ -55,15 +69,27 @@ const VideoUrlForm = () => {
       }
 
       const data = await response.json();
-      const youtubeId = data["ID do vídeo no youtube"];
+      const youtubeId = data["id_video_youtube"] || data["ID do vídeo no youtube"];
 
       if (!youtubeId) {
-        throw new Error("N8N did not return a YouTube ID");
+         throw new Error("N8N did not return a YouTube ID");
+      }
+
+      // Add to user history (Search history)
+      const { error: historyError } = await supabase
+        .from('user_history')
+        .insert({
+          user_id: profile.id,
+          id_video_youtube: youtubeId
+        });
+
+      if (historyError) {
+         console.error("Error adding to history:", historyError);
       }
 
       toast({
-        title: "Análise concluída!",
-        description: "Direcionando para os resultados...",
+        title: "Vídeo processado!",
+        description: "Direcionando para os detalhes...",
       });
 
       navigate(`/result/${youtubeId}`);
@@ -72,7 +98,7 @@ const VideoUrlForm = () => {
       console.error("Error submitting video:", error);
       toast({
         title: "Erro ao processar",
-        description: "Ocorreu um erro ao enviar sua requisição para o N8N. Tente novamente.",
+        description: "Ocorreu um erro ao buscar o vídeo. Tente novamente.",
         variant: "destructive",
       });
     } finally {
@@ -88,7 +114,7 @@ const VideoUrlForm = () => {
         </div>
         <div>
           <h2 className="text-2xl font-bold gradient-text">Processar Vídeo</h2>
-          <p className="text-muted-foreground text-sm">Cole a URL do vídeo abaixo</p>
+          <p className="text-muted-foreground text-sm">Cole a URL do vídeo abaixo para ver os detalhes</p>
         </div>
       </div>
 
@@ -117,15 +143,15 @@ const VideoUrlForm = () => {
           {isSubmitting ? (
             <>
               <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-              Processando...
+              Buscando informações...
             </>
           ) : (
-            "Processar Vídeo"
+            "Buscar Vídeo"
           )}
         </Button>
 
         <p className="text-xs text-muted-foreground text-center">
-          Ao processar, o vídeo será enviado para análise via n8n e os resultados aparecerão automaticamente
+          A busca inicial é gratuita. A análise de sentimentos consumirá créditos.
         </p>
       </form>
     </Card>
