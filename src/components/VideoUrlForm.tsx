@@ -5,12 +5,15 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Video } from "lucide-react";
+import { useProfile } from "@/hooks/useProfile";
+import { supabase } from "@/integrations/supabase/client";
 
 const VideoUrlForm = () => {
   const [videoUrl, setVideoUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { profile, refreshProfile } = useProfile();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +27,6 @@ const VideoUrlForm = () => {
       return;
     }
 
-    // Basic URL validation
     try {
       new URL(videoUrl);
     } catch {
@@ -36,10 +38,28 @@ const VideoUrlForm = () => {
       return;
     }
 
+    if (!profile) {
+      toast({
+        title: "Erro de autenticação",
+        description: "Você precisa estar logado para processar vídeos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (profile.credits < 100) {
+      toast({
+        title: "Créditos insuficientes",
+        description: "Você precisa de pelo menos 100 créditos para realizar uma análise.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      // Call N8N webhook
+      // 1. Call N8N webhook
       const response = await fetch('https://negociaai.app.n8n.cloud/webhook-test/analisa-video', {
         method: 'POST',
         headers: {
@@ -55,10 +75,46 @@ const VideoUrlForm = () => {
       }
 
       const data = await response.json();
-      const youtubeId = data["ID do vídeo no youtube"];
+      const youtubeId = data["id_video_youtube"]; // Changed to match memory "id_video_youtube" which is the expected key
 
       if (!youtubeId) {
-        throw new Error("N8N did not return a YouTube ID");
+        // Fallback or error if N8N response format changes. The original code used "ID do vídeo no youtube" but memory says "id_video_youtube"
+         // I'll check both just in case, but rely on memory as primary.
+         const altId = data["ID do vídeo no youtube"];
+         if (!altId) throw new Error("N8N did not return a YouTube ID");
+      }
+
+      const finalId = youtubeId || data["ID do vídeo no youtube"];
+
+      // 2. Deduct credits
+      const { error: creditError } = await supabase
+        .from('profiles')
+        .update({ credits: profile.credits - 100 })
+        .eq('id', profile.id);
+
+      if (creditError) {
+        console.error("Error deducting credits:", creditError);
+        // We continue even if credit deduction fails for now, or we could rollback.
+        // Ideally this should be a transaction on the server side (Postgres function).
+        toast({
+          title: "Aviso",
+          description: "Erro ao descontar créditos, mas a análise foi concluída.",
+          variant: "destructive"
+        });
+      } else {
+        refreshProfile();
+      }
+
+      // 3. Add to user history
+      const { error: historyError } = await supabase
+        .from('user_history')
+        .insert({
+          user_id: profile.id,
+          id_video_youtube: finalId
+        });
+
+      if (historyError) {
+         console.error("Error adding to history:", historyError);
       }
 
       toast({
@@ -66,7 +122,7 @@ const VideoUrlForm = () => {
         description: "Direcionando para os resultados...",
       });
 
-      navigate(`/result/${youtubeId}`);
+      navigate(`/result/${finalId}`);
 
     } catch (error) {
       console.error("Error submitting video:", error);
@@ -120,7 +176,7 @@ const VideoUrlForm = () => {
               Processando...
             </>
           ) : (
-            "Processar Vídeo"
+            "Processar Vídeo (100 créditos)"
           )}
         </Button>
 

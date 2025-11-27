@@ -124,6 +124,68 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          id: string
+          email: string | null
+          credits: number
+          created_at: string
+        }
+        Insert: {
+          id: string
+          email?: string | null
+          credits?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          email?: string | null
+          credits?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_id_fkey"
+            columns: ["id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      user_history: {
+        Row: {
+          id: number
+          user_id: string
+          id_video_youtube: string
+          created_at: string
+        }
+        Insert: {
+          id?: number
+          user_id: string
+          id_video_youtube: string
+          created_at?: string
+        }
+        Update: {
+          id?: number
+          user_id?: string
+          id_video_youtube?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_history_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_history_id_video_youtube_fkey"
+            columns: ["id_video_youtube"]
+            referencedRelation: "videos"
+            referencedColumns: ["id_video_youtube"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
