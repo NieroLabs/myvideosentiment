@@ -92,7 +92,7 @@ const VideoUrlForm = () => {
         description: "Direcionando para os detalhes...",
       });
 
-      navigate(`/result/${finalId}`);
+      navigate(`/result/${youtubeId}`);
 
     } catch (error) {
       console.error("Error submitting video:", error);
