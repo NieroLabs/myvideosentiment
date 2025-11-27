@@ -210,6 +210,10 @@ const Result = () => {
 
   // We'll show the analysis UI if there are NO analyzed comments yet.
   const hasSentiment = resultData && resultData["Top comentários"].some(c => c.sentimento && c.sentimento.trim() !== '');
+  const analyzedComments = resultData?.["Top comentários"]?.filter(
+    (c) => c.sentimento && c.sentimento.trim() !== ""
+  ) || [];
+
 
   if (loading) {
     return (
@@ -303,6 +307,18 @@ const Result = () => {
               </div>
             </Card>
 
+            <Card className="p-6 flex items-center gap-4 bg-card/50">
+              <div className="p-3 rounded-full bg-primary/10">
+                <MessageSquare className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Engajamento</p>
+                <p className="text-2xl font-bold">                  {resultData.Visualizações
+                    ? (Math.round(((resultData.Curtidas + resultData.Comentários) / resultData.Visualizações) * 100 * 10) / 10) + '%'
+                    : '-'}</p>
+              </div>
+            </Card>
+
              <Card className="p-6 flex items-center gap-4 bg-card/50">
               <div className="p-3 rounded-full bg-primary/10">
                 <TrendingUp className="w-6 h-6 text-primary" />
@@ -310,7 +326,7 @@ const Result = () => {
               <div>
                 <p className="text-sm text-muted-foreground">Analisados</p>
                 <p className="text-2xl font-bold">
-                  {resultData["Top comentários"]?.length || 0}
+                    {analyzedComments.length}
                 </p>
               </div>
             </Card>
