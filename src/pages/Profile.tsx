@@ -17,7 +17,9 @@ const ProfilePage = () => {
 
   const addCredits = async () => {
     if (!profile) return;
-
+    console.error("Peça créditos ao admin (Luiz NIero)");
+    toast.error("Peça créditos ao admin (Luiz Niero)")
+    /*
     try {
       // Mock API call to add credits
       const newCredits = profile.credits + 1000;
@@ -35,6 +37,7 @@ const ProfilePage = () => {
       console.error("Error adding credits:", error);
       toast.error("Erro ao adicionar créditos");
     }
+      */
   };
 
   if (loading) {
@@ -69,10 +72,6 @@ const ProfilePage = () => {
             <label className="text-sm font-medium text-muted-foreground">Créditos Disponíveis</label>
             <div className="flex items-center gap-4 mt-1">
               <span className="text-3xl font-bold text-primary">{profile?.credits}</span>
-              <Button onClick={addCredits} size="sm" className="flex gap-2">
-                <Plus className="w-4 h-4" />
-                Adicionar Créditos
-              </Button>
             </div>
             <p className="text-sm text-muted-foreground mt-2">
               Cada análise de vídeo custa 100 créditos.
