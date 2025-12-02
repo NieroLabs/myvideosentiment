@@ -27,12 +27,47 @@ interface N8NResult {
     "respostas": number;
     "sentimento"?: string;
   }>;
-  "sentimento"?: {
-    "positivo": number;
-    "neutro": number;
-    "negativo": number;
-  };
+  "sentimento"?: Record<string, number>;
 }
+
+const getSentimentConfig = (sentiment: string) => {
+  const normalized = sentiment.toLowerCase().trim();
+
+  // Basic mapping
+  if (['apoio_operacao', 'apoio_condicional', 'positivo', 'positive'].includes(normalized)) {
+    return { label: 'Positivo', color: '#22c55e', bg: 'bg-green-500/20', text: 'text-green-600' };
+  }
+  if (['contra_operacao', 'negativo', 'negative'].includes(normalized)) {
+    return { label: 'Negativo', color: '#ef4444', bg: 'bg-red-500/20', text: 'text-red-600' };
+  }
+  if (['neutro_ou_fora_de_contexto', 'pedindo_informacao', 'comentario_politico', 'neutro', 'neutral'].includes(normalized)) {
+    return { label: 'Neutro', color: '#94a3b8', bg: 'bg-gray-500/20', text: 'text-gray-600' };
+  }
+
+  // Palette for other emotions
+  const colors = [
+    { color: '#f59e0b', bg: 'bg-amber-500/20', text: 'text-amber-600' },
+    { color: '#3b82f6', bg: 'bg-blue-500/20', text: 'text-blue-600' },
+    { color: '#8b5cf6', bg: 'bg-violet-500/20', text: 'text-violet-600' },
+    { color: '#ec4899', bg: 'bg-pink-500/20', text: 'text-pink-600' },
+    { color: '#06b6d4', bg: 'bg-cyan-500/20', text: 'text-cyan-600' },
+    { color: '#f97316', bg: 'bg-orange-500/20', text: 'text-orange-600' },
+    { color: '#10b981', bg: 'bg-emerald-500/20', text: 'text-emerald-600' },
+    { color: '#6366f1', bg: 'bg-indigo-500/20', text: 'text-indigo-600' },
+  ];
+
+  let hash = 0;
+  for (let i = 0; i < normalized.length; i++) {
+    hash = normalized.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % colors.length;
+  const config = colors[index];
+
+  // Format label: capitalize first letter and replace underscores
+  const label = normalized.charAt(0).toUpperCase() + normalized.slice(1).replace(/_/g, ' ');
+
+  return { label, ...config };
+};
 
 const Result = () => {
   const { id } = useParams<{ id: string }>();
@@ -45,30 +80,12 @@ const Result = () => {
   const [error, setError] = useState<string | null>(null);
   const [resultData, setResultData] = useState<N8NResult | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [sentimentData, setSentimentData] = useState([
-    { name: 'Positivo', value: 0, color: '#22c55e' },
-    { name: 'Neutro', value: 0, color: '#94a3b8' },
-    { name: 'Negativo', value: 0, color: '#ef4444' },
-  ]);
+  const [sentimentData, setSentimentData] = useState<any[]>([]);
 
   // Analysis Limit State
   const [analysisLimit, setAnalysisLimit] = useState<number>(10);
   const [maxComments, setMaxComments] = useState<number>(100);
   const [analysisType, setAnalysisType] = useState<string>("basic");
-
-  const mapSentimentCategory = (category: string): string => {
-    if (['apoio_operacao', 'apoio_condicional', 'positivo'].includes(category.toLowerCase())) return 'Positivo';
-    if (['contra_operacao', 'negativo'].includes(category.toLowerCase())) return 'Negativo';
-    return 'Neutro';
-  };
-
-  const updateSentimentChart = (counts: { positivo: number, neutro: number, negativo: number }) => {
-    setSentimentData([
-      { name: 'Positivo', value: counts.positivo, color: '#22c55e' },
-      { name: 'Neutro', value: counts.neutro, color: '#94a3b8' },
-      { name: 'Negativo', value: counts.negativo, color: '#ef4444' },
-    ]);
-  };
 
   const fetchData = useCallback(async () => {
     if (id) {
@@ -98,15 +115,34 @@ const Result = () => {
           if (commentsError) throw commentsError;
 
           // Calculate sentiment from comments
-          const sentimentCounts = { positivo: 0, neutro: 0, negativo: 0 };
+          const sentimentMap = new Map<string, { count: number; color: string }>();
+
           commentsData?.forEach(comment => {
-            const sentiment = mapSentimentCategory(comment.sentimento || '');
-            if (sentiment === 'Positivo') sentimentCounts.positivo++;
-            else if (sentiment === 'Negativo') sentimentCounts.negativo++;
-            else sentimentCounts.neutro++;
+            const rawSentiment = comment.sentimento || '';
+            if (rawSentiment) {
+                const config = getSentimentConfig(rawSentiment);
+                const key = config.label;
+                if (!sentimentMap.has(key)) {
+                    sentimentMap.set(key, { count: 0, color: config.color });
+                }
+                const entry = sentimentMap.get(key)!;
+                entry.count += 1;
+            }
           });
 
-          updateSentimentChart(sentimentCounts);
+          const newSentimentData = Array.from(sentimentMap.entries()).map(([name, data]) => ({
+              name,
+              value: data.count,
+              color: data.color
+          }));
+
+          setSentimentData(newSentimentData);
+
+          // Create a record for the "sentimento" field in N8NResult
+          const sentimentRecord: Record<string, number> = {};
+          sentimentMap.forEach((value, key) => {
+            sentimentRecord[key] = value.count;
+          });
 
           // Map Supabase data to N8NResult structure
           const mappedData: N8NResult = {
@@ -124,7 +160,8 @@ const Result = () => {
               "curtidas": comment.curtidas || 0,
               "respostas": comment.respostas || 0,
               "sentimento": comment.sentimento || undefined
-            })) || []
+            })) || [],
+            "sentimento": sentimentRecord
           };
 
           setResultData(mappedData);
@@ -206,11 +243,6 @@ const Result = () => {
   };
 
   const hasComments = resultData && resultData["Top comentários"].length > 0;
-  // If we have comments and they have sentiment, we consider it analyzed.
-  // BUT the user might want to re-analyze or analyze MORE.
-  // For simplicity, we show the analysis block if there are NO sentiments yet,
-  // OR we can always allow it? The prompt implies "Antes de clicar... pode escolher".
-  // Let's assume we allow analysis always, or at least if current analysis is empty.
 
   // We'll show the analysis UI if there are NO analyzed comments yet.
   const hasSentiment = resultData && resultData["Top comentários"].some(c => c.sentimento && c.sentimento.trim() !== '');
@@ -453,15 +485,14 @@ const Result = () => {
                           <ThumbsUp className="w-3 h-3" />
                           {comment["curtidas"] || 0}
                         </span>
-                        {comment.sentimento && (
-                          <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] ${
-                            mapSentimentCategory(comment.sentimento) === 'Positivo' ? 'bg-green-500/20 text-green-600' :
-                            mapSentimentCategory(comment.sentimento) === 'Negativo' ? 'bg-red-500/20 text-red-600' :
-                            'bg-gray-500/20 text-gray-600'
-                          }`}>
-                            {mapSentimentCategory(comment.sentimento)}
-                          </span>
-                        )}
+                        {comment.sentimento && (() => {
+                          const config = getSentimentConfig(comment.sentimento);
+                          return (
+                            <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] ${config.bg} ${config.text}`}>
+                              {config.label}
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
                   ))}
