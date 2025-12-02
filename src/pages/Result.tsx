@@ -8,6 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { useProfile } from "@/hooks/useProfile";
 import { Slider } from "@/components/ui/slider";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 
 interface N8NResult {
   "Título do vídeo": string;
@@ -52,6 +54,7 @@ const Result = () => {
   // Analysis Limit State
   const [analysisLimit, setAnalysisLimit] = useState<number>(10);
   const [maxComments, setMaxComments] = useState<number>(100);
+  const [analysisType, setAnalysisType] = useState<string>("basic");
 
   const mapSentimentCategory = (category: string): string => {
     if (['apoio_operacao', 'apoio_condicional', 'positivo'].includes(category.toLowerCase())) return 'Positivo';
@@ -175,7 +178,8 @@ const Result = () => {
         body: JSON.stringify({
           url: videoUrl,
           qtd_comentarios: analysisLimit,
-          video_id: id
+          video_id: id,
+          tipo_analise: analysisType
         })
       });
 
@@ -363,6 +367,20 @@ const Result = () => {
                       <p className="text-xs text-muted-foreground text-right">
                         Custo estimado: <span className="text-yellow-500 font-bold">{analysisLimit} créditos</span>
                       </p>
+                    </div>
+
+                    <div className="space-y-2 w-full text-left">
+                      <Label className="text-sm">Tipo de Análise</Label>
+                      <RadioGroup value={analysisType} onValueChange={setAnalysisType} className="flex flex-col gap-2">
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="basic" id="basic" />
+                          <Label htmlFor="basic" className="font-normal cursor-pointer">Básica (Positiva, Negativa, Neutra)</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="google_emotions" id="google_emotions" />
+                          <Label htmlFor="google_emotions" className="font-normal cursor-pointer">Google Go Emotions</Label>
+                        </div>
+                      </RadioGroup>
                     </div>
 
                     <Button
