@@ -53,7 +53,7 @@ const VideoUrlForm = () => {
 
     try {
       // Call N8N webhook with qtd_comentarios: 0 (Metadata only)
-      const response = await fetch('https://negociaai.app.n8n.cloud/webhook-test/analisa-video', {
+      const response = await fetch('https://negociaai.app.n8n.cloud/webhook/analisa-video', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

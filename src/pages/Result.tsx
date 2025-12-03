@@ -209,7 +209,7 @@ const Result = () => {
       refreshProfile();
 
       // 2. Call N8N webhook
-      await fetch('https://negociaai.app.n8n.cloud/webhook-test/processa-comentarios', {
+      await fetch('https://negociaai.app.n8n.cloud/webhook/processa-comentarios', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
