@@ -126,7 +126,7 @@ const VideoUrlForm = () => {
           <Input
             id="videoUrl"
             type="url"
-            placeholder="https://exemplo.com/video.mp4"
+            placeholder="https://www.youtube.com/watch?v=rzLQR1tS2Dw"
             value={videoUrl}
             onChange={(e) => setVideoUrl(e.target.value)}
             disabled={isSubmitting}
@@ -151,7 +151,7 @@ const VideoUrlForm = () => {
         </Button>
 
         <p className="text-xs text-muted-foreground text-center">
-          A busca inicial é gratuita. A análise de sentimentos consumirá créditos.
+          A busca inicial é gratuita para até 100 comentários. A análise de sentimentos consumirá créditos.
         </p>
       </form>
     </Card>
