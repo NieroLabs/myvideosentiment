@@ -17,7 +17,7 @@ const ProfilePage = () => {
 
   const addCredits = async () => {
     if (!profile) return;
-    console.error("Peça créditos ao admin (Luiz NIero)");
+    console.error("Peça créditos ao admin (Luiz Niero)");
     toast.error("Peça créditos ao admin (Luiz Niero)")
     /*
     try {

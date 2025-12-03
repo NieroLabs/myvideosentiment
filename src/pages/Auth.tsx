@@ -38,7 +38,7 @@ const AuthPage = () => {
             supabaseClient={supabase}
             appearance={{ theme: ThemeSupa }}
             theme="dark"
-            providers={["google"]}
+            providers={[]} // Se quiser fazer login com google, colocar aqui.
             redirectTo={window.location.origin}
           />
         </div>
