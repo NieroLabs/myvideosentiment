@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Plus, LogOut } from "lucide-react";
+import { Loader2, Plus, LogOut, SendToBack } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -14,6 +14,11 @@ const ProfilePage = () => {
     await supabase.auth.signOut();
     navigate("/auth");
   };
+
+  const voltar = async () =>
+  {
+    navigate("/");
+  }
 
   const addCredits = async () => {
     if (!profile) return;
@@ -51,8 +56,13 @@ const ProfilePage = () => {
   return (
     <div className="container mx-auto p-8 max-w-2xl">
       <div className="flex justify-between items-center mb-8">
+      <Button variant="outline" onClick={voltar} className="flex gap-2">
+          <SendToBack className="w-4 h-4" />
+          Voltar
+        </Button>
+      
         <h1 className="text-3xl font-bold">Meu Perfil</h1>
-        <Button variant="outline" onClick={handleLogout} className="flex gap-2">
+        <Button variant="destructive" onClick={handleLogout} className="flex gap-2">
           <LogOut className="w-4 h-4" />
           Sair
         </Button>
